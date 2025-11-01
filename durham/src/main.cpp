@@ -52,6 +52,18 @@ int main(int argc, char** argv) {
 
     Tokenizer tokenizer(contents); 
     std::vector<Token> tokens = tokenizer.tokenize(); 
+    
+    // If corrections were made, write back to file
+    if (tokenizer.hasCorrections()) {
+        std::ofstream output_file(argv[1]);
+        if (output_file.is_open()) {
+            output_file << tokenizer.getCorrectedSource();
+            output_file.close();
+            std::cout << "File updated with corrections." << std::endl;
+        } else {
+            std::cerr << "Warning: Could not write corrections to file" << std::endl;
+        }
+    }
 
     Parser parser(tokens);
     std::shared_ptr<ASTNode> ast = parser.parse();

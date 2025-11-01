@@ -82,14 +82,23 @@ class Tokenizer {
         Tokenizer(const std::string& source); // constructor
         ~Tokenizer(); // destructor
         std::vector<Token> tokenize(); 
+        
+        // Get corrected source code
+        std::string getCorrectedSource() const { return src; }
+        bool hasCorrections() const { return corrections_made; }
 
     private: 
         
         int index; 
         std::string src; 
+        bool corrections_made;
         std::optional<char> peek(int offset=0);
         char consume();
         
+        // Autocorrect helpers
+        int levenshteinDistance(const std::string& s1, const std::string& s2);
+        std::optional<std::string> suggestCorrection(const std::string& word);
+        bool promptUserForCorrection(const std::string& original, const std::string& suggestion, int position);
 };
 
 std::optional<char> college_to_digit(const std::string& college);
