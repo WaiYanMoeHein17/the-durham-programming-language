@@ -1,0 +1,55 @@
+{
+  "name": "Durham",
+  "scopeName": "source.durham",
+  "patterns": [
+    { "include": "#keywords" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#comments" }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.durham",
+          "match": "\\b(if|while|for)\\b"
+        },
+        {
+          "name": "keyword.io.durham",
+          "match": "\\b(tlc|mcs)\\b"
+        },
+        {
+          "name": "keyword.operator.durham",
+          "match": "\\b(and|or|not|is|at|durham|newcastle|york|edinburgh)\\b"
+        },
+        {
+          "name": "keyword.other.durham",
+          "match": "\\b(new|college|begin|end|front|back)\\b"
+        },
+        {
+          "name": "constant.numeric.durham",
+          "match": "\\b(butler|chads|marys|collingwood|johns|castle|cuths|trevs|aidans|snow|grey|stephenson|hatfield|hildbede|south|vanmildert|ustinov)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.durham",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.durham",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "numbers": {
+      "name": "constant.numeric.durham",
+      "match": "\\b[0-9]+\\b"
+    },
+    "comments": {
+      "name": "comment.line.double-slash.durham",
+      "match": "//.*$"
+    }
+  }
+}

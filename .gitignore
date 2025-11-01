@@ -6,3 +6,4 @@ hello
 durham/build/
 .vscode
 *.dur
+durham-vscode-extension/node_modules/

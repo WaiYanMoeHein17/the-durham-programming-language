@@ -2,6 +2,11 @@ section .data
     digit db '0', 10
     array times 1000 dq 0
 
+section .bss
+    temp_buffer resb 32
+    heap_space resb 8192
+    heap_ptr resq 1
+
 section .text
     global main
     extern putchar
@@ -11,83 +16,59 @@ main:
     mov rbp, rsp
     sub rsp, 1024
 
-    mov rcx, 48
-    call putchar
-    mov rcx, 49
-    call putchar
-    mov rcx, 50
-    call putchar
-    mov rcx, 51
-    call putchar
-    mov rcx, 52
-    call putchar
-    mov rcx, 53
-    call putchar
-    mov rcx, 54
-    call putchar
-    mov rcx, 55
-    call putchar
-    mov rcx, 56
-    call putchar
-    mov rcx, 57
-    call putchar
-    mov rcx, 10
-    call putchar
+    ; Initialize heap pointer
+    lea rax, [rel heap_space]
+    mov [rel heap_ptr], rax
 
-    mov rcx, 50
+    mov rax, 1
+    mov [rbp-8], rax
+.for_start_0:
+    mov rax, [rbp-8]
+    push rax
+    mov rax, 14
+    mov rbx, rax
+    pop rax
+    cmp rax, rbx
+    jge .for_end_0
+    mov rax, [rbp-8]
+    ; Print value in rax
+    test rax, rax
+    jnz .not_zero_1
+    mov rcx, '0'
     call putchar
-    mov rcx, 10
-    call putchar
-
-    mov rcx, 52
-    call putchar
-    mov rcx, 10
-    call putchar
-
-    mov rcx, 57
-    call putchar
-    mov rcx, 10
-    call putchar
-
-    mov rcx, 50
-    call putchar
-    mov rcx, 53
-    call putchar
-    mov rcx, 10
-    call putchar
-
-    ; Variable 'v' size=3 at [rbp-8]
-    mov qword [rbp-8], 3
-    mov qword [rbp-16], 1
-    mov qword [rbp-24], 1
-    mov qword [rbp-32], 1
-
-    ; Print vector 'v'
-    mov r10, [rbp-8]  ; load size
-    lea r11, [rbp-16]  ; array start
-    mov rcx, 40
-    call putchar
+    jmp .done_print_1
+.not_zero_1:
+    mov rbx, 10
     xor r12, r12
-.print_loop_v:
-    cmp r12, r10
-    jge .print_done_v
-    mov rax, [r11 + r12*8]
-    add rax, 48
-    mov rcx, rax
-    call putchar
+    lea r13, [rel temp_buffer]
+.digit_loop_1:
+    xor rdx, rdx
+    div rbx
+    add dl, '0'
+    mov [r13 + r12], dl
     inc r12
-    cmp r12, r10
-    jge .print_done_v
-    mov rcx, 44
+    test rax, rax
+    jnz .digit_loop_1
+.print_loop_1:
+    dec r12
+    movzx rcx, byte [r13 + r12]
     call putchar
-    jmp .print_loop_v
-.print_done_v:
-    mov rcx, 41
-    call putchar
+    test r12, r12
+    jnz .print_loop_1
+.done_print_1:
     mov rcx, 10
     call putchar
+    mov rax, [rbp-8]
+    push rax
+    mov rax, 1
+    mov rbx, rax
+    pop rax
+    add rax, rbx
+    mov [rbp-8], rax
+    jmp .for_start_0
+.for_end_0:
 
-    xor rax, rax
+    xor eax, eax
     add rsp, 1024
     pop rbp
     ret

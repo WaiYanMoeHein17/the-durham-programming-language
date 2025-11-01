@@ -17,12 +17,15 @@ durham (filename).dur
 
 ## Numbers
 
+Base 17 for the 17 colleges 0-16. 
+
 0 = ? 
 1 = Chads
 2 = Marys 
 3 = Collingwood
 4 = ? 
 9 = ?
+17 = ?
 ...
 
 You can guess the remaining 7 by printing all colleges and seeing what happens

@@ -1,0 +1,48 @@
+{
+  "name": "durham-language",
+  "displayName": "Durham Language Support",
+  "description": "Language support for Durham programming language with voice-enabled autocomplete",
+  "version": "0.0.1",
+  "publisher": "WaiYanMoeHein17",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WaiYanMoeHein17/assembly-coding"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:durham"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "durham",
+        "aliases": ["Durham", "durham"],
+        "extensions": [".dur"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "durham",
+        "scopeName": "source.durham",
+        "path": "./syntaxes/durham.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.0.0"
+  }
+}

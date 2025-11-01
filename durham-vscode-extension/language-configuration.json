@@ -1,0 +1,21 @@
+{
+  "comments": {
+  },
+  "brackets": [
+    ["begin", "end"],
+    ["front", "back"]
+  ],
+  "autoClosingPairs": [
+    { "open": "begin", "close": "end" },
+    { "open": "front", "close": "back" },
+    { "open": "\"", "close": "\""  }
+  ],
+  "surroundingPairs": [
+    ["\"", "\""],
+    ["front", "back"]
+  ],
+  "semicolon": [
+    [";"]
+  ]
+  
+}
