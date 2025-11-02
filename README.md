@@ -104,16 +104,6 @@ back
 ### Local Development
 Simply open `index.html` in a web browser.
 
-### GitHub Pages
-1. Push the `web` folder to your GitHub repository
-2. Go to Settings → Pages
-3. Select the branch and `/web` folder
-4. Your site will be live at `https://yourusername.github.io/repository-name/`
-
-### Netlify/Vercel
-1. Drag and drop the `web` folder to Netlify or Vercel
-2. Your site will be deployed instantly
-
 ## Browser Compatibility
 
 Works on all modern browsers:
@@ -131,22 +121,6 @@ The web compiler is a pure JavaScript interpreter that:
 - Provides immediate feedback
 
 No server-side processing required - everything runs in your browser!
-
-## Limitations
-
-- No file I/O operations
-- No multi-threading
-- Maximum 10,000 loop iterations (prevents infinite loops)
-- Memory limited to browser's JavaScript heap
-
-## Tips for Hackathon Presentation
-
-1. **Open with a live demo** - Show Hello World running instantly
-2. **Highlight the college theme** - Explain how Durham colleges become numbers
-3. **Run Fibonacci** - Shows practical algorithm implementation
-4. **Demonstrate string concatenation** - Unique feature
-5. **Show if-else** - Proves it's a full-featured language
-6. **Mobile-friendly** - Show it works on phones too!
 
 ## Contributing
 
