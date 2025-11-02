@@ -18,18 +18,20 @@ void generate_condition(std::shared_ptr<ASTNode> node,
                        int label,
                        const std::string& label_prefix = "while");
 
-// Helper function to convert base-17 string to decimal integer
-int base17_to_decimal(const std::string& base17_str) {
-    int decimal_value = 0;
-    for (char c : base17_str) {
-        decimal_value *= 17;
-        if (c >= '0' && c <= '9') {
-            decimal_value += (c - '0');
-        } else if (c >= 'A' && c <= 'G') {
-            decimal_value += (c - 'A' + 10);
-        }
-    }
-    return decimal_value;
+// Helper function to check if an expression is a string type
+bool is_string_expression(std::shared_ptr<ASTNode> node, const std::map<std::string, std::string>& string_vars);
+
+// Helper function to generate string concatenation
+void generate_string_concat(std::shared_ptr<ASTNode> left, std::shared_ptr<ASTNode> right,
+                           std::stringstream& asm_code,
+                           std::map<std::string, int>& var_offsets,
+                           const std::map<std::string, std::string>& string_vars,
+                           const std::map<std::string, int>& string_lits);
+
+// Helper function to convert decimal string to integer
+// Now that we use decimal (not base-17), this is just a wrapper around stoi
+int base17_to_decimal(const std::string& decimal_str) {
+    return std::stoi(decimal_str);
 }
 
 // Helper function to generate unique labels
@@ -968,6 +970,139 @@ std::string generate_assembly(const std::vector<Token>& tokens) {
 // Helper to collect string literals from AST
 static std::map<std::string, int> string_literals;
 static int string_counter = 0;
+static std::map<std::string, std::string> string_variables; // varname -> string label
+
+// Helper function to check if an expression is a string type
+bool is_string_expression(std::shared_ptr<ASTNode> node, const std::map<std::string, std::string>& string_vars) {
+    if (!node) return false;
+    
+    if (node->type == NodeType::StringLiteral) return true;
+    
+    if (node->type == NodeType::Identifier) {
+        std::string var_name = node->value.value();
+        return string_vars.find(var_name) != string_vars.end();
+    }
+    
+    if (node->type == NodeType::BinaryOp) {
+        auto binOp = std::static_pointer_cast<BinaryOpNode>(node);
+        if (binOp->op == TokenType::_durham) {
+            return is_string_expression(binOp->left, string_vars) || 
+                   is_string_expression(binOp->right, string_vars);
+        }
+    }
+    
+    return false;
+}
+
+// Helper function to generate string concatenation
+// This allocates heap memory for the concatenated result
+void generate_string_concat(std::shared_ptr<ASTNode> left, std::shared_ptr<ASTNode> right,
+                           std::stringstream& asm_code,
+                           std::map<std::string, int>& var_offsets,
+                           const std::map<std::string, std::string>& string_vars,
+                           const std::map<std::string, int>& string_lits) {
+    static int concat_counter = 0;
+    int current_concat = concat_counter++;
+    
+    asm_code << "    ; String concatenation\n";
+    
+    // Get left string pointer into r12
+    if (left->type == NodeType::StringLiteral) {
+        std::string str = left->value.value();
+        int str_id = string_lits.at(str);
+        asm_code << "    lea r12, [rel str_" << str_id << "]\n";
+    } else if (left->type == NodeType::Identifier) {
+        std::string var_name = left->value.value();
+        asm_code << "    mov r12, [rbp-" << var_offsets.at(var_name) << "]\n";
+    } else if (left->type == NodeType::BinaryOp) {
+        // Recursively handle nested concatenation
+        auto leftBinOp = std::static_pointer_cast<BinaryOpNode>(left);
+        if (leftBinOp->op == TokenType::_durham) {
+            generate_string_concat(leftBinOp->left, leftBinOp->right, asm_code, 
+                                 var_offsets, string_vars, string_lits);
+            asm_code << "    mov r12, rax\n";
+        }
+    }
+    
+    // Get right string pointer into r13
+    if (right->type == NodeType::StringLiteral) {
+        std::string str = right->value.value();
+        int str_id = string_lits.at(str);
+        asm_code << "    lea r13, [rel str_" << str_id << "]\n";
+    } else if (right->type == NodeType::Identifier) {
+        std::string var_name = right->value.value();
+        asm_code << "    mov r13, [rbp-" << var_offsets.at(var_name) << "]\n";
+    } else if (right->type == NodeType::BinaryOp) {
+        // Recursively handle nested concatenation
+        auto rightBinOp = std::static_pointer_cast<BinaryOpNode>(right);
+        if (rightBinOp->op == TokenType::_durham) {
+            generate_string_concat(rightBinOp->left, rightBinOp->right, asm_code, 
+                                 var_offsets, string_vars, string_lits);
+            asm_code << "    mov r13, rax\n";
+        }
+    }
+    
+    // Calculate left string length
+    asm_code << "    mov r14, r12\n";
+    asm_code << "    xor r15, r15\n";
+    asm_code << ".strlen_left_" << current_concat << ":\n";
+    asm_code << "    movzx rax, byte [r14]\n";
+    asm_code << "    test rax, rax\n";
+    asm_code << "    jz .done_strlen_left_" << current_concat << "\n";
+    asm_code << "    inc r15\n";
+    asm_code << "    inc r14\n";
+    asm_code << "    jmp .strlen_left_" << current_concat << "\n";
+    asm_code << ".done_strlen_left_" << current_concat << ":\n";
+    
+    // Calculate right string length
+    asm_code << "    mov r14, r13\n";
+    asm_code << "    xor rbx, rbx\n";
+    asm_code << ".strlen_right_" << current_concat << ":\n";
+    asm_code << "    movzx rax, byte [r14]\n";
+    asm_code << "    test rax, rax\n";
+    asm_code << "    jz .done_strlen_right_" << current_concat << "\n";
+    asm_code << "    inc rbx\n";
+    asm_code << "    inc r14\n";
+    asm_code << "    jmp .strlen_right_" << current_concat << "\n";
+    asm_code << ".done_strlen_right_" << current_concat << ":\n";
+    
+    // Allocate heap memory: left_len + right_len + 1 (for null terminator)
+    asm_code << "    mov rax, r15\n";
+    asm_code << "    add rax, rbx\n";
+    asm_code << "    inc rax\n";  // +1 for null terminator
+    asm_code << "    mov rcx, [rel heap_ptr]\n";
+    asm_code << "    mov r14, rcx\n";  // Save start pointer
+    asm_code << "    add rcx, rax\n";
+    asm_code << "    mov [rel heap_ptr], rcx\n";
+    
+    // Copy left string
+    asm_code << "    mov rsi, r12\n";
+    asm_code << "    mov rdi, r14\n";
+    asm_code << ".copy_left_" << current_concat << ":\n";
+    asm_code << "    movzx rax, byte [rsi]\n";
+    asm_code << "    test rax, rax\n";
+    asm_code << "    jz .done_copy_left_" << current_concat << "\n";
+    asm_code << "    mov [rdi], al\n";
+    asm_code << "    inc rsi\n";
+    asm_code << "    inc rdi\n";
+    asm_code << "    jmp .copy_left_" << current_concat << "\n";
+    asm_code << ".done_copy_left_" << current_concat << ":\n";
+    
+    // Copy right string
+    asm_code << "    mov rsi, r13\n";
+    asm_code << ".copy_right_" << current_concat << ":\n";
+    asm_code << "    movzx rax, byte [rsi]\n";
+    asm_code << "    mov [rdi], al\n";
+    asm_code << "    test rax, rax\n";
+    asm_code << "    jz .done_copy_right_" << current_concat << "\n";
+    asm_code << "    inc rsi\n";
+    asm_code << "    inc rdi\n";
+    asm_code << "    jmp .copy_right_" << current_concat << "\n";
+    asm_code << ".done_copy_right_" << current_concat << ":\n";
+    
+    // Return pointer to concatenated string in rax
+    asm_code << "    mov rax, r14\n";
+}
 
 void collect_strings(std::shared_ptr<ASTNode> node) {
     if (!node) return;
@@ -980,7 +1115,30 @@ void collect_strings(std::shared_ptr<ASTNode> node) {
         }
     }
     
-    // Recursively check children
+    // Collect string literals from StringLiteral nodes
+    if (node->type == NodeType::StringLiteral && node->value.has_value()) {
+        std::string str = node->value.value();
+        if (string_literals.find(str) == string_literals.end()) {
+            string_literals[str] = string_counter++;
+        }
+    }
+    
+    // Handle ForLoop nodes specially (they have init, condition, increment, body)
+    if (node->type == NodeType::ForLoop) {
+        auto forNode = std::static_pointer_cast<ForNode>(node);
+        collect_strings(forNode->init);
+        collect_strings(forNode->condition);
+        collect_strings(forNode->increment);
+        collect_strings(forNode->body);
+    }
+    
+    // Handle FunctionDecl nodes (they have parameters and body)
+    if (node->type == NodeType::FunctionDecl) {
+        auto funcNode = std::static_pointer_cast<FunctionDeclNode>(node);
+        collect_strings(funcNode->body);
+    }
+    
+    // Recursively check standard children
     if (node->left) collect_strings(node->left);
     if (node->right) collect_strings(node->right);
     for (auto& child : node->children) {
@@ -1016,6 +1174,18 @@ std::string generate_assembly_from_ast(std::shared_ptr<ASTNode> ast) {
     asm_code << "    global main\n";
     asm_code << "    extern putchar\n\n";
     
+    // First pass: Generate function declarations
+    if (ast->type == NodeType::Program) {
+        for (auto& child : ast->children) {
+            if (child->type == NodeType::FunctionDecl) {
+                std::map<std::string, int> dummy_vars;
+                int dummy_stack = 0;
+                int dummy_label = 0;
+                generate_node(child, asm_code, dummy_vars, dummy_stack, dummy_label);
+            }
+        }
+    }
+    
     asm_code << "main:\n";
     asm_code << "    push rbp\n";
     asm_code << "    mov rbp, rsp\n";
@@ -1029,8 +1199,17 @@ std::string generate_assembly_from_ast(std::shared_ptr<ASTNode> ast) {
     int stack_offset = 0;
     int label_counter = 0;
     
-    // Generate code for the AST
-    generate_node(ast, asm_code, var_offsets, stack_offset, label_counter);
+    // Second pass: Generate non-function statements for main
+    if (ast->type == NodeType::Program) {
+        for (auto& child : ast->children) {
+            if (child->type != NodeType::FunctionDecl) {
+                generate_node(child, asm_code, var_offsets, stack_offset, label_counter);
+            }
+        }
+    } else {
+        // Not a program node, generate directly
+        generate_node(ast, asm_code, var_offsets, stack_offset, label_counter);
+    }
     
     // Footer
     asm_code << "\n    xor eax, eax\n";
@@ -1067,11 +1246,13 @@ void generate_node(std::shared_ptr<ASTNode> node,
         }
         
         case NodeType::Assignment: {
-            std::string var_name = node->value.value();
+            auto assignNode = std::static_pointer_cast<AssignmentNode>(node);
+            std::string var_name = assignNode->varName;
+            std::string var_type = assignNode->varType;
             
             // Check if this is array element assignment (left side is ArrayAccess)
-            if (node->left && node->left->type == NodeType::ArrayAccess) {
-                auto accessNode = std::static_pointer_cast<ArrayAccessNode>(node->left);
+            if (assignNode->left && assignNode->left->type == NodeType::ArrayAccess) {
+                auto accessNode = std::static_pointer_cast<ArrayAccessNode>(assignNode->left);
                 
                 // Get the array pointer
                 asm_code << "    mov rbx, [rbp-" << var_offsets[accessNode->arrayName] << "]\n";
@@ -1081,7 +1262,7 @@ void generate_node(std::shared_ptr<ASTNode> node,
                 asm_code << "    push rax\n";
                 
                 // Evaluate the value to assign
-                generate_expression(node->right, asm_code, var_offsets);
+                generate_expression(assignNode->right, asm_code, var_offsets);
                 asm_code << "    mov rcx, rax\n";  // Save value in rcx
                 
                 // Calculate offset
@@ -1089,8 +1270,33 @@ void generate_node(std::shared_ptr<ASTNode> node,
                 asm_code << "    imul rax, 8\n";  // index * 8
                 asm_code << "    add rbx, rax\n";  // array + offset
                 asm_code << "    mov [rbx], rcx\n";  // Store value
+            } else if (var_type == "text") {
+                // String variable assignment
+                
+                // Allocate space on stack for the pointer
+                if (var_offsets.find(var_name) == var_offsets.end()) {
+                    stack_offset += 8;
+                    var_offsets[var_name] = stack_offset;
+                }
+                
+                // Track this as a string variable (mark it before generating expression)
+                string_variables[var_name] = var_name;  // Mark as string variable
+                
+                // Generate the expression (could be literal, variable, or concatenation)
+                // Result will be a pointer in rax
+                if (assignNode->right->type == NodeType::StringLiteral) {
+                    std::string str_value = assignNode->right->value.value();
+                    int str_id = string_literals[str_value];
+                    asm_code << "    lea rax, [rel str_" << str_id << "]\n";
+                } else {
+                    // Could be another string variable or concatenation
+                    generate_expression(assignNode->right, asm_code, var_offsets);
+                }
+                
+                // Store pointer to string
+                asm_code << "    mov [rbp-" << var_offsets[var_name] << "], rax\n";
             } else {
-                // Regular variable assignment
+                // Regular numeric variable assignment
                 
                 // Allocate space on stack if new variable
                 if (var_offsets.find(var_name) == var_offsets.end()) {
@@ -1099,7 +1305,7 @@ void generate_node(std::shared_ptr<ASTNode> node,
                 }
                 
                 // Generate code for the expression
-                generate_expression(node->right, asm_code, var_offsets);
+                generate_expression(assignNode->right, asm_code, var_offsets);
                 
                 // Store result in variable
                 asm_code << "    mov [rbp-" << var_offsets[var_name] << "], rax\n";
@@ -1127,40 +1333,116 @@ void generate_node(std::shared_ptr<ASTNode> node,
                 asm_code << "    call putchar\n";
                 
                 label_counter++;
+            } else if (node->left && node->left->type == NodeType::Identifier) {
+                // Check if this is a string variable
+                std::string var_name = node->left->value.value();
+                if (string_variables.find(var_name) != string_variables.end()) {
+                    // Print string variable
+                    asm_code << "    ; Print string variable\n";
+                    asm_code << "    mov rbx, [rbp-" << var_offsets[var_name] << "]\n";
+                    asm_code << ".print_str_" << label_counter << ":\n";
+                    asm_code << "    movzx rcx, byte [rbx]\n";
+                    asm_code << "    test rcx, rcx\n";
+                    asm_code << "    jz .done_str_" << label_counter << "\n";
+                    asm_code << "    call putchar\n";
+                    asm_code << "    inc rbx\n";
+                    asm_code << "    jmp .print_str_" << label_counter << "\n";
+                    asm_code << ".done_str_" << label_counter << ":\n";
+                    asm_code << "    mov rcx, 10\n";  // Print newline
+                    asm_code << "    call putchar\n";
+                    
+                    label_counter++;
+                } else {
+                    // Print numeric variable
+                    generate_expression(node->left, asm_code, var_offsets);
+                    
+                    // Print the value in rax
+                    asm_code << "    ; Print value in rax\n";
+                    asm_code << "    test rax, rax\n";
+                    asm_code << "    jnz .not_zero_" << label_counter << "\n";
+                    asm_code << "    mov rcx, '0'\n";
+                    asm_code << "    call putchar\n";
+                    asm_code << "    jmp .done_print_" << label_counter << "\n";
+                    asm_code << ".not_zero_" << label_counter << ":\n";
+                    asm_code << "    mov rbx, 10\n";
+                    asm_code << "    xor r12, r12\n";
+                    asm_code << "    lea r13, [rel temp_buffer]\n";
+                    asm_code << ".digit_loop_" << label_counter << ":\n";
+                    asm_code << "    xor rdx, rdx\n";
+                    asm_code << "    div rbx\n";
+                    asm_code << "    add dl, '0'\n";
+                    asm_code << "    mov [r13 + r12], dl\n";
+                    asm_code << "    inc r12\n";
+                    asm_code << "    test rax, rax\n";
+                    asm_code << "    jnz .digit_loop_" << label_counter << "\n";
+                    asm_code << ".print_loop_" << label_counter << ":\n";
+                    asm_code << "    dec r12\n";
+                    asm_code << "    movzx rcx, byte [r13 + r12]\n";
+                    asm_code << "    call putchar\n";
+                    asm_code << "    test r12, r12\n";
+                    asm_code << "    jnz .print_loop_" << label_counter << "\n";
+                    asm_code << ".done_print_" << label_counter << ":\n";
+                    asm_code << "    mov rcx, 10\n";
+                    asm_code << "    call putchar\n";
+                    
+                    label_counter++;
+                }
             } else {
-                // Generate code for the expression to print
-                generate_expression(node->left, asm_code, var_offsets);
-                
-                // Print the value in rax
-                asm_code << "    ; Print value in rax\n";
-                asm_code << "    test rax, rax\n";
-                asm_code << "    jnz .not_zero_" << label_counter << "\n";
-                asm_code << "    mov rcx, '0'\n";
-                asm_code << "    call putchar\n";
-                asm_code << "    jmp .done_print_" << label_counter << "\n";
-                asm_code << ".not_zero_" << label_counter << ":\n";
-                asm_code << "    mov rbx, 10\n";
-                asm_code << "    xor r12, r12\n";
-                asm_code << "    lea r13, [rel temp_buffer]\n";
-                asm_code << ".digit_loop_" << label_counter << ":\n";
-                asm_code << "    xor rdx, rdx\n";
-                asm_code << "    div rbx\n";
-                asm_code << "    add dl, '0'\n";
-                asm_code << "    mov [r13 + r12], dl\n";
-                asm_code << "    inc r12\n";
-                asm_code << "    test rax, rax\n";
-                asm_code << "    jnz .digit_loop_" << label_counter << "\n";
-                asm_code << ".print_loop_" << label_counter << ":\n";
-                asm_code << "    dec r12\n";
-                asm_code << "    movzx rcx, byte [r13 + r12]\n";
-                asm_code << "    call putchar\n";
-                asm_code << "    test r12, r12\n";
-                asm_code << "    jnz .print_loop_" << label_counter << "\n";
-                asm_code << ".done_print_" << label_counter << ":\n";
-                asm_code << "    mov rcx, 10\n";
-                asm_code << "    call putchar\n";
-                
-                label_counter++;
+                // Check if this is a string expression (concatenation or string literal)
+                if (is_string_expression(node->left, string_variables)) {
+                    // Generate code for the string expression
+                    generate_expression(node->left, asm_code, var_offsets);
+                    
+                    // rax now contains pointer to string
+                    asm_code << "    ; Print string from expression\n";
+                    asm_code << "    mov rbx, rax\n";
+                    asm_code << ".print_str_" << label_counter << ":\n";
+                    asm_code << "    movzx rcx, byte [rbx]\n";
+                    asm_code << "    test rcx, rcx\n";
+                    asm_code << "    jz .done_str_" << label_counter << "\n";
+                    asm_code << "    call putchar\n";
+                    asm_code << "    inc rbx\n";
+                    asm_code << "    jmp .print_str_" << label_counter << "\n";
+                    asm_code << ".done_str_" << label_counter << ":\n";
+                    asm_code << "    mov rcx, 10\n";  // Print newline
+                    asm_code << "    call putchar\n";
+                    
+                    label_counter++;
+                } else {
+                    // Generate code for the numeric expression to print
+                    generate_expression(node->left, asm_code, var_offsets);
+                    
+                    // Print the value in rax
+                    asm_code << "    ; Print value in rax\n";
+                    asm_code << "    test rax, rax\n";
+                    asm_code << "    jnz .not_zero_" << label_counter << "\n";
+                    asm_code << "    mov rcx, '0'\n";
+                    asm_code << "    call putchar\n";
+                    asm_code << "    jmp .done_print_" << label_counter << "\n";
+                    asm_code << ".not_zero_" << label_counter << ":\n";
+                    asm_code << "    mov rbx, 10\n";
+                    asm_code << "    xor r12, r12\n";
+                    asm_code << "    lea r13, [rel temp_buffer]\n";
+                    asm_code << ".digit_loop_" << label_counter << ":\n";
+                    asm_code << "    xor rdx, rdx\n";
+                    asm_code << "    div rbx\n";
+                    asm_code << "    add dl, '0'\n";
+                    asm_code << "    mov [r13 + r12], dl\n";
+                    asm_code << "    inc r12\n";
+                    asm_code << "    test rax, rax\n";
+                    asm_code << "    jnz .digit_loop_" << label_counter << "\n";
+                    asm_code << ".print_loop_" << label_counter << ":\n";
+                    asm_code << "    dec r12\n";
+                    asm_code << "    movzx rcx, byte [r13 + r12]\n";
+                    asm_code << "    call putchar\n";
+                    asm_code << "    test r12, r12\n";
+                    asm_code << "    jnz .print_loop_" << label_counter << "\n";
+                    asm_code << ".done_print_" << label_counter << ":\n";
+                    asm_code << "    mov rcx, 10\n";
+                    asm_code << "    call putchar\n";
+                    
+                    label_counter++;
+                }
             }
             break;
         }
@@ -1231,6 +1513,75 @@ void generate_node(std::shared_ptr<ASTNode> node,
             break;
         }
         
+        case NodeType::FunctionDecl: {
+            // function name begin params end front body back
+            auto funcNode = std::static_pointer_cast<FunctionDeclNode>(node);
+            
+            asm_code << "\n; Function: " << funcNode->functionName << "\n";
+            asm_code << funcNode->functionName << ":\n";
+            asm_code << "    push rbp\n";
+            asm_code << "    mov rbp, rsp\n";
+            asm_code << "    sub rsp, 256\n";  // Local variable space
+            
+            // Create local variable map for parameters
+            // Windows x64: first 4 params in rcx, rdx, r8, r9
+            std::map<std::string, int> func_vars;
+            int param_offset = 0;
+            for (size_t i = 0; i < funcNode->parameters.size(); i++) {
+                param_offset += 8;
+                func_vars[funcNode->parameters[i]] = param_offset;
+                
+                // Store parameter on stack
+                if (i == 0) {
+                    asm_code << "    mov [rbp-" << param_offset << "], rcx\n";
+                } else if (i == 1) {
+                    asm_code << "    mov [rbp-" << param_offset << "], rdx\n";
+                } else if (i == 2) {
+                    asm_code << "    mov [rbp-" << param_offset << "], r8\n";
+                } else if (i == 3) {
+                    asm_code << "    mov [rbp-" << param_offset << "], r9\n";
+                } else {
+                    // Additional parameters on stack (passed by caller)
+                    asm_code << "    mov rax, [rbp+" << (16 + (i-4)*8) << "]\n";
+                    asm_code << "    mov [rbp-" << param_offset << "], rax\n";
+                }
+            }
+            
+            int func_stack_offset = param_offset;
+            int func_label_counter = 0;
+            
+            // Generate function body
+            generate_node(funcNode->body, asm_code, func_vars, func_stack_offset, func_label_counter);
+            
+            // Default return (return 0)
+            asm_code << "    xor rax, rax\n";
+            asm_code << "    add rsp, 256\n";
+            asm_code << "    pop rbp\n";
+            asm_code << "    ret\n\n";
+            break;
+        }
+        
+        case NodeType::Return: {
+            // mcs expression.
+            auto returnNode = std::static_pointer_cast<ReturnNode>(node);
+            
+            // Evaluate return expression
+            generate_expression(returnNode->returnValue, asm_code, var_offsets);
+            
+            // Return value is in rax, clean up and return
+            asm_code << "    add rsp, 256\n";
+            asm_code << "    pop rbp\n";
+            asm_code << "    ret\n";
+            break;
+        }
+        
+        case NodeType::FunctionCall: {
+            // Function calls are handled in generate_expression
+            // But if it's a statement (not used in expression), handle it here
+            generate_expression(node, asm_code, var_offsets);
+            break;
+        }
+        
         default:
             break;
     }
@@ -1251,6 +1602,14 @@ void generate_expression(std::shared_ptr<ASTNode> node,
             break;
         }
         
+        case NodeType::StringLiteral: {
+            // Load address of string literal into rax
+            std::string str = node->value.value();
+            int str_id = string_literals[str];
+            asm_code << "    lea rax, [rel str_" << str_id << "]\n";
+            break;
+        }
+        
         case NodeType::Identifier: {
             std::string var_name = node->value.value();
             if (var_offsets.find(var_name) == var_offsets.end()) {
@@ -1263,32 +1622,42 @@ void generate_expression(std::shared_ptr<ASTNode> node,
         case NodeType::BinaryOp: {
             auto binOp = std::static_pointer_cast<BinaryOpNode>(node);
             
-            // Generate left operand
-            generate_expression(binOp->left, asm_code, var_offsets);
-            asm_code << "    push rax\n";
-            
-            // Generate right operand
-            generate_expression(binOp->right, asm_code, var_offsets);
-            asm_code << "    mov rbx, rax\n";
-            asm_code << "    pop rax\n";
-            
-            // Perform operation
-            switch (binOp->op) {
-                case TokenType::_durham:  // +
-                    asm_code << "    add rax, rbx\n";
-                    break;
-                case TokenType::_newcastle:  // -
-                    asm_code << "    sub rax, rbx\n";
-                    break;
-                case TokenType::_york:  // *
-                    asm_code << "    imul rax, rbx\n";
-                    break;
-                case TokenType::_edinburgh:  // /
-                    asm_code << "    xor rdx, rdx\n";
-                    asm_code << "    div rbx\n";
-                    break;
-                default:
-                    break;
+            // Check if this is a string concatenation operation
+            if (binOp->op == TokenType::_durham && 
+                (is_string_expression(binOp->left, string_variables) || 
+                 is_string_expression(binOp->right, string_variables))) {
+                // String concatenation
+                generate_string_concat(binOp->left, binOp->right, asm_code, 
+                                     var_offsets, string_variables, string_literals);
+            } else {
+                // Numeric operation
+                // Generate left operand
+                generate_expression(binOp->left, asm_code, var_offsets);
+                asm_code << "    push rax\n";
+                
+                // Generate right operand
+                generate_expression(binOp->right, asm_code, var_offsets);
+                asm_code << "    mov rbx, rax\n";
+                asm_code << "    pop rax\n";
+                
+                // Perform operation
+                switch (binOp->op) {
+                    case TokenType::_durham:  // +
+                        asm_code << "    add rax, rbx\n";
+                        break;
+                    case TokenType::_newcastle:  // -
+                        asm_code << "    sub rax, rbx\n";
+                        break;
+                    case TokenType::_york:  // *
+                        asm_code << "    imul rax, rbx\n";
+                        break;
+                    case TokenType::_edinburgh:  // /
+                        asm_code << "    xor rdx, rdx\n";
+                        asm_code << "    div rbx\n";
+                        break;
+                    default:
+                        break;
+                }
             }
             break;
         }
@@ -1331,6 +1700,56 @@ void generate_expression(std::shared_ptr<ASTNode> node,
             // Load array[index] into rax
             asm_code << "    add rbx, rax\n";
             asm_code << "    mov rax, [rbx]\n";
+            break;
+        }
+        
+        case NodeType::FunctionCall: {
+            // func begin arg1 and arg2 end
+            std::string func_name = node->value.value();
+            
+            asm_code << "    ; Call function " << func_name << "\n";
+            
+            // Windows x64 calling convention: rcx, rdx, r8, r9, then stack
+            // Save caller-saved registers if needed
+            asm_code << "    push rcx\n";
+            asm_code << "    push rdx\n";
+            asm_code << "    push r8\n";
+            asm_code << "    push r9\n";
+            
+            // Align stack to 16 bytes (Windows x64 requirement)
+            asm_code << "    sub rsp, 32\n";  // Shadow space
+            
+            // Evaluate arguments and place them in registers/stack
+            for (size_t i = 0; i < node->children.size(); i++) {
+                generate_expression(node->children[i], asm_code, var_offsets);
+                
+                if (i == 0) {
+                    asm_code << "    mov rcx, rax\n";
+                } else if (i == 1) {
+                    asm_code << "    mov rdx, rax\n";
+                } else if (i == 2) {
+                    asm_code << "    mov r8, rax\n";
+                } else if (i == 3) {
+                    asm_code << "    mov r9, rax\n";
+                } else {
+                    // Push additional args onto stack (right-to-left)
+                    asm_code << "    push rax\n";
+                }
+            }
+            
+            // Call the function
+            asm_code << "    call " << func_name << "\n";
+            
+            // Clean up stack
+            asm_code << "    add rsp, 32\n";
+            
+            // Restore registers
+            asm_code << "    pop r9\n";
+            asm_code << "    pop r8\n";
+            asm_code << "    pop rdx\n";
+            asm_code << "    pop rcx\n";
+            
+            // Result is now in rax
             break;
         }
         

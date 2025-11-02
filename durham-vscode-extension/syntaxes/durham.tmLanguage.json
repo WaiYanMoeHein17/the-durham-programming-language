@@ -2,17 +2,18 @@
   "name": "Durham",
   "scopeName": "source.durham",
   "patterns": [
+    { "include": "#comments" },
+    { "include": "#function-declaration" },
     { "include": "#keywords" },
     { "include": "#strings" },
-    { "include": "#numbers" },
-    { "include": "#comments" }
+    { "include": "#numbers" }
   ],
   "repository": {
     "keywords": {
       "patterns": [
         {
           "name": "keyword.control.durham",
-          "match": "\\b(if|while|for)\\b"
+          "match": "\\b(if|while|for|function)\\b"
         },
         {
           "name": "keyword.io.durham",
@@ -23,8 +24,12 @@
           "match": "\\b(and|or|not|is|at|durham|newcastle|york|edinburgh)\\b"
         },
         {
+          "name": "keyword.bracket.durham",
+          "match": "\\b(begin|end|front|back)\\b"
+        },
+        {
           "name": "keyword.other.durham",
-          "match": "\\b(new|college|begin|end|front|back)\\b"
+          "match": "\\b(new|college)\\b"
         },
         {
           "name": "constant.numeric.durham",
@@ -34,22 +39,30 @@
     },
     "strings": {
       "name": "string.quoted.double.durham",
-      "begin": "\"",
-      "end": "\"",
-      "patterns": [
-        {
-          "name": "constant.character.escape.durham",
-          "match": "\\\\."
-        }
-      ]
+      "match": "(begin)\\s+(\"[^\"]*\")",
+      "captures": {
+        "1": { "name": "keyword.bracket.durham" },
+        "2": { "name": "string.quoted.double.durham" }
+      }
     },
     "numbers": {
       "name": "constant.numeric.durham",
       "match": "\\b[0-9]+\\b"
     },
     "comments": {
-      "name": "comment.line.double-slash.durham",
-      "match": "//.*$"
+      "name": "comment.block.durham",
+      "begin": "\"(?!\\s*end)",
+      "end": "\"",
+      "patterns": []
+    },
+    "function-declaration": {
+      "name": "meta.function.durham",
+      "match": "\\b(function)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s+(begin)",
+      "captures": {
+        "1": { "name": "keyword.control.durham" },
+        "2": { "name": "entity.name.function.durham" },
+        "3": { "name": "keyword.bracket.durham" }
+      }
     }
   }
 }

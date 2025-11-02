@@ -65,10 +65,16 @@ int main(int argc, char** argv) {
         }
     }
 
-    Parser parser(tokens);
-    std::shared_ptr<ASTNode> ast = parser.parse();
-    
-    std::string assembly_code = generate_assembly_from_ast(ast);
+    std::string assembly_code;
+    try {
+        Parser parser(tokens);
+        std::shared_ptr<ASTNode> ast = parser.parse();
+        
+        assembly_code = generate_assembly_from_ast(ast);
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
 
     // Write assembly
     std::ofstream output("output.asm");

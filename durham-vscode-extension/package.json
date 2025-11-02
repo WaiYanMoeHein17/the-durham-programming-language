@@ -33,6 +33,23 @@
         "scopeName": "source.durham",
         "path": "./syntaxes/durham.tmLanguage.json"
       }
+    ],
+    "commands": [
+      {
+        "command": "durham.startTypingGame",
+        "title": "Durham: Start Typing Game"
+      },
+      {
+        "command": "durham.cancelTypingGame",
+        "title": "Durham: Cancel Typing Game"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "durham.cancelTypingGame",
+        "key": "escape",
+        "when": "editorTextFocus && editorLangId == durham"
+      }
     ]
   },
   "scripts": {

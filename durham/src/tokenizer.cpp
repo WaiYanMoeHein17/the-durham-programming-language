@@ -102,29 +102,39 @@ char Tokenizer::consume() {
     return src.at(index++); 
 }
 
-std::optional<char> college_to_digit(const std::string& college) {
-    static const std::map<std::string, char> lookup = {
-        {"butler", '0'},
-        {"chads", '1'},
-        {"marys", '2'},
-        {"collingwood", '3'},
-        {"johns", '4'},
-        {"castle", '5'},
-        {"cuths", '6'},
-        {"trevs", '7'},
-        {"aidans", '8'},
-        {"snow", '9'},
-        {"grey", 'A'},           // 10
-        {"stephenson", 'B'},     // 11
-        {"hatfield", 'C'},       // 12
-        {"hild_bede", 'D'},      // 13
-        {"south", 'E'},          // 14
-        {"van_mildert", 'F'},    // 15
-        {"ustinov", 'G'}         // 16
+// Returns the decimal value as a string for colleges representing 0-16
+std::optional<std::string> college_to_decimal(const std::string& college) {
+    static const std::map<std::string, std::string> lookup = {
+        {"butler", "0"},
+        {"chads", "1"},
+        {"marys", "2"},
+        {"collingwood", "3"},
+        {"johns", "4"},
+        {"castle", "5"},
+        {"cuths", "6"},
+        {"trevs", "7"},
+        {"aidans", "8"},
+        {"snow", "9"},
+        {"grey", "10"},
+        {"stephenson", "11"},
+        {"hatfield", "12"},
+        {"hildbede", "13"},
+        {"south", "14"},
+        {"vanmildert", "15"},
+        {"ustinov", "16"}
     };
     
     auto it = lookup.find(college);
     if (it != lookup.end()) return it->second;
+    return std::nullopt;
+}
+
+// Legacy function for backwards compatibility - converts to single char for 0-9
+std::optional<char> college_to_digit(const std::string& college) {
+    auto decimal = college_to_decimal(college);
+    if (decimal.has_value() && decimal.value().length() == 1) {
+        return decimal.value()[0];
+    }
     return std::nullopt;
 }
 
@@ -144,8 +154,11 @@ std::vector<Token> Tokenizer::tokenize() {
             continue;
         }
         
-        // String literals with quotation marks
+        // String literals and comments with quotation marks
         if (peek().value() == '"') {
+            // Check if the previous token was 'begin' (for strings: begin "..." end)
+            bool is_string_context = !tokens.empty() && tokens.back().type == TokenType::open_paren;
+            
             consume(); // consume opening quote
             std::string str_value;
             
@@ -155,9 +168,14 @@ std::vector<Token> Tokenizer::tokenize() {
             
             if (peek().has_value() && peek().value() == '"') {
                 consume(); // consume closing quote
-                tokens.push_back({TokenType::quotations, str_value});
+                
+                // String literal: begin "text" end (for print or assignment)
+                if (is_string_context) {
+                    tokens.push_back({TokenType::quotations, str_value});
+                }
+                // Otherwise, it's a comment - skip it entirely
             } else {
-                std::cerr << "Error: Unterminated string literal" << std::endl;
+                std::cerr << "Error: Unterminated string/comment" << std::endl;
             }
             continue;
         }
@@ -172,10 +190,9 @@ std::vector<Token> Tokenizer::tokenize() {
             }
             
             // Check if it's a college name (digit)
-            auto digit = college_to_digit(buffer);
-            if (digit.has_value()) {
-                std::string number_string;
-                number_string += digit.value();
+            auto decimal_value = college_to_decimal(buffer);
+            if (decimal_value.has_value()) {
+                std::string number_string = decimal_value.value();
                 
                 // Handle multi-digit numbers with ','
                 while (peek().has_value() && peek().value() == ',') {
@@ -186,9 +203,9 @@ std::vector<Token> Tokenizer::tokenize() {
                         buffer += consume();
                     }
                     
-                    digit = college_to_digit(buffer);
-                    if (digit.has_value()) {
-                        number_string += digit.value();
+                    decimal_value = college_to_decimal(buffer);
+                    if (decimal_value.has_value()) {
+                        number_string += decimal_value.value();
                     } else {
                         std::cerr << "Error: Unknown college name '" << buffer << "'" << std::endl;
                         break;
@@ -206,8 +223,17 @@ std::vector<Token> Tokenizer::tokenize() {
                 tokens.push_back({TokenType::_for});
             } else if (buffer == "if") {
                 tokens.push_back({TokenType::_if});
+            } else if (buffer == "else") {
+                tokens.push_back({TokenType::_else});
             } else if (buffer == "while") {
                 tokens.push_back({TokenType::_while});
+            } else if (buffer == "function") {
+                tokens.push_back({TokenType::_function});
+            // Type keywords
+            } else if (buffer == "text") {
+                tokens.push_back({TokenType::_text});
+            } else if (buffer == "number") {
+                tokens.push_back({TokenType::_number});
             // Vector/Array keywords
             } else if (buffer == "new") {
                 tokens.push_back({TokenType::_new});

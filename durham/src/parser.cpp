@@ -67,6 +67,16 @@ std::shared_ptr<ASTNode> Parser::parseStatement() {
         return nullptr;
     }
     
+    // Function declaration
+    if (check(TokenType::_function)) {
+        return parseFunctionDecl();
+    }
+    
+    // Return statement
+    if (check(TokenType::_mcs)) {
+        return parseReturn();
+    }
+    
     // If statement
     if (check(TokenType::_if)) {
         return parseIfStatement();
@@ -87,6 +97,11 @@ std::shared_ptr<ASTNode> Parser::parseStatement() {
         return parsePrint();
     }
     
+    // Typed variable declaration: text name is ... OR number x is ...
+    if (check(TokenType::_text) || check(TokenType::_number)) {
+        return parseTypedDeclaration();
+    }
+    
     // Assignment
     if (check(TokenType::identifier)) {
         return parseAssignment();
@@ -96,9 +111,16 @@ std::shared_ptr<ASTNode> Parser::parseStatement() {
     return nullptr;
 }
 
-// Parse assignment: x is expr. OR array at index is expr.
+// Parse assignment: x is expr. OR array at index is expr. OR function call: func begin args end.
 std::shared_ptr<ASTNode> Parser::parseAssignment() {
     Token name = consume(TokenType::identifier, "Expected variable name");
+    
+    // Check if it's a function call: name begin args end
+    if (check(TokenType::open_paren)) {
+        auto funcCall = parseFunctionCall(name.value.value());
+        consume(TokenType::semi, "Expected '.' after function call");
+        return funcCall;
+    }
     
     // Check if it's array element assignment: array at index is value
     if (check(TokenType::_at)) {
@@ -122,6 +144,44 @@ std::shared_ptr<ASTNode> Parser::parseAssignment() {
     
     auto assignment = std::make_shared<AssignmentNode>(name.value.value());
     assignment->right = parseExpression();
+    
+    consume(TokenType::semi, "Expected '.' after expression");
+    
+    return assignment;
+}
+
+// Parse typed variable declaration: text name is "value". OR number x is butler.
+std::shared_ptr<ASTNode> Parser::parseTypedDeclaration() {
+    // Consume type keyword (text or number)
+    Token typeToken = advance();
+    std::string varType = (typeToken.type == TokenType::_text) ? "text" : "number";
+    
+    // Get variable name
+    Token name = consume(TokenType::identifier, "Expected variable name after type");
+    
+    // Consume 'is'
+    consume(TokenType::equals, "Expected 'is' after variable name");
+    
+    // Parse the value expression
+    auto assignment = std::make_shared<AssignmentNode>(name.value.value(), varType);
+    assignment->right = parseExpression();
+    
+    // Type checking: verify the expression matches the declared type
+    if (varType == "text") {
+        // For text variables, we need to check if the expression is a string literal or string variable
+        if (assignment->right->type != NodeType::StringLiteral && 
+            assignment->right->type != NodeType::Identifier &&
+            assignment->right->type != NodeType::BinaryOp) {
+            throw std::runtime_error("Type error: text variable '" + name.value.value() + 
+                                   "' must be assigned a string value");
+        }
+    } else if (varType == "number") {
+        // For number variables, check if it's a numeric literal or numeric expression
+        if (assignment->right->type == NodeType::StringLiteral) {
+            throw std::runtime_error("Type error: number variable '" + name.value.value() + 
+                                   "' cannot be assigned a string value");
+        }
+    }
     
     consume(TokenType::semi, "Expected '.' after expression");
     
@@ -158,9 +218,19 @@ std::shared_ptr<ASTNode> Parser::parseTerm() {
     return left;
 }
 
-// Parse factor: primary or (expression)
+// Parse factor: primary or (expression) or string
 std::shared_ptr<ASTNode> Parser::parseFactor() {
     if (match(TokenType::open_paren)) {
+        // Check if it's a string literal: begin "text" end
+        if (check(TokenType::quotations)) {
+            consume(TokenType::quotations, "Expected string");
+            auto stringNode = std::make_shared<ASTNode>(NodeType::StringLiteral);
+            stringNode->value = tokens[current - 1].value.value();
+            consume(TokenType::close_paren, "Expected 'end' after string");
+            return stringNode;
+        }
+        
+        // Otherwise it's a parenthesized expression
         auto expr = parseExpression();
         consume(TokenType::close_paren, "Expected 'end' after expression");
         return expr;
@@ -182,6 +252,11 @@ std::shared_ptr<ASTNode> Parser::parsePrimary() {
     
     if (match(TokenType::identifier)) {
         std::string name = tokens[current - 1].value.value();
+        
+        // Check for function call: identifier begin args end
+        if (check(TokenType::open_paren)) {
+            return parseFunctionCall(name);
+        }
         
         // Check for array access: identifier at index
         if (check(TokenType::_at)) {
@@ -348,6 +423,80 @@ std::shared_ptr<ASTNode> Parser::parseArrayAccess(const std::string& arrayName) 
     
     return accessNode;
 }
+
+// Parse function declaration: function name begin param1 and param2 end front body back
+std::shared_ptr<ASTNode> Parser::parseFunctionDecl() {
+    consume(TokenType::_function, "Expected 'function'");
+    
+    Token nameToken = consume(TokenType::identifier, "Expected function name");
+    auto funcNode = std::make_shared<FunctionDeclNode>(nameToken.value.value());
+    
+    consume(TokenType::open_paren, "Expected 'begin' after function name");
+    
+    // Parse parameters (separated by 'and')
+    if (!check(TokenType::close_paren)) {
+        do {
+            Token param = consume(TokenType::identifier, "Expected parameter name");
+            funcNode->parameters.push_back(param.value.value());
+            
+            if (match(TokenType::_and)) {
+                continue; // More parameters
+            } else {
+                break;
+            }
+        } while (true);
+    }
+    
+    consume(TokenType::close_paren, "Expected 'end' after parameters");
+    consume(TokenType::open_brace, "Expected 'front' before function body");
+    
+    // Parse function body
+    funcNode->body = parseBlock();
+    
+    consume(TokenType::close_brace, "Expected 'back' after function body");
+    
+    return funcNode;
+}
+
+// Parse return statement: mcs expression.
+std::shared_ptr<ASTNode> Parser::parseReturn() {
+    consume(TokenType::_mcs, "Expected 'mcs'");
+    
+    auto returnNode = std::make_shared<ReturnNode>();
+    returnNode->returnValue = parseExpression();
+    
+    consume(TokenType::semi, "Expected '.' after return value");
+    
+    return returnNode;
+}
+
+// Parse function call: name begin arg1 and arg2 end
+std::shared_ptr<ASTNode> Parser::parseFunctionCall(const std::string& functionName) {
+    auto callNode = std::make_shared<ASTNode>(NodeType::FunctionCall, functionName);
+    
+    consume(TokenType::open_paren, "Expected 'begin' for function call");
+    
+    // Parse arguments (separated by 'and')
+    if (!check(TokenType::close_paren)) {
+        do {
+            auto arg = parseExpression();
+            callNode->children.push_back(arg);
+            
+            if (match(TokenType::_and)) {
+                continue; // More arguments
+            } else {
+                break;
+            }
+        } while (true);
+    }
+    
+    consume(TokenType::close_paren, "Expected 'end' after function arguments");
+    
+    return callNode;
+}
+
+
+
 
 
 

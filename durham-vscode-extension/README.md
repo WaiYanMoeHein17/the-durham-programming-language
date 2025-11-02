@@ -4,10 +4,14 @@ Voice-enabled extension for the Durham programming language with real-time text-
 
 ## Features
 
-- **Syntax highlighting** for `.dur` files
+- **Syntax highlighting** for `.dur` files with function and comment support
 - **IntelliSense autocomplete** with Durham keywords
 - **Text-to-speech** voices words as you type them
 - **Smart typo detection** using Levenshtein distance algorithm
+- **🎮 Typing Game Mode** - Type over 100 WPM and autocomplete becomes a mini-game!
+  - Automatically triggers when you type too fast
+  - Complete the challenge to restore autocomplete
+  - Tracks your WPM and completion time
 
 ## Installation
 
@@ -26,10 +30,23 @@ Voice-enabled extension for the Durham programming language with real-time text-
 
 ## Usage
 
+### Normal Coding Mode
 The extension provides real-time audio feedback as you type in `.dur` files:
-- Type any Durham keyword and hear it spoken after 100ms pause
-- Press space, period, or newline to hear the complete word immediately
+- Type any Durham keyword and hear it spoken after you press space/period
 - Get autocomplete suggestions with Tab or Enter
+- Syntax highlighting for functions and comments
+
+### 🎮 Typing Game Mode
+**Challenge yourself!**
+- If you type over **100 WPM**, the extension automatically triggers a typing challenge
+- Your autocomplete is disabled until you complete the challenge
+- Type the displayed Durham code snippet as fast as you can
+- Upon completion:
+  - Your time and WPM are displayed
+  - Autocomplete is restored
+  - You can play again by clicking the status bar icon
+
+**Manual Start**: Click the status bar "Durham Typing Game" button to start anytime!
 
 ## Keywords Supported
 

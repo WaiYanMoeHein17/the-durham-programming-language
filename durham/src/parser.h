@@ -18,8 +18,11 @@ enum class NodeType {
     BinaryOp, 
     UnaryOp, 
     Literal, 
+    StringLiteral,  // String literal value
     Identifier, 
     FunctionCall, 
+    FunctionDecl,   // function name begin params end front body back
+    Return,         // mcs expression
     IfStatement, 
     ForLoop,
     WhileLoop, 
@@ -57,9 +60,10 @@ struct BinaryOpNode : public ASTNode {
 
 struct AssignmentNode : public ASTNode {
     std::string varName;
+    std::string varType;  // "text", "number", or "" (untyped/inferred)
     
-    AssignmentNode(const std::string& name) 
-        : ASTNode(NodeType::Assignment, name), varName(name) {}
+    AssignmentNode(const std::string& name, const std::string& type = "") 
+        : ASTNode(NodeType::Assignment, name), varName(name), varType(type) {}
 };
 
 struct IfNode : public ASTNode {
@@ -100,6 +104,21 @@ struct ArrayAccessNode : public ASTNode {
         : ASTNode(NodeType::ArrayAccess, name), arrayName(name) {}
 };
 
+struct FunctionDeclNode : public ASTNode {
+    std::string functionName;
+    std::vector<std::string> parameters;  // Parameter names
+    std::shared_ptr<ASTNode> body;        // Function body (Block)
+    
+    FunctionDeclNode(const std::string& name) 
+        : ASTNode(NodeType::FunctionDecl, name), functionName(name) {}
+};
+
+struct ReturnNode : public ASTNode {
+    std::shared_ptr<ASTNode> returnValue;  // Expression to return
+    
+    ReturnNode() : ASTNode(NodeType::Return) {}
+};
+
 class Parser {
     private:
         std::vector<Token> tokens; 
@@ -128,6 +147,10 @@ class Parser {
         std::shared_ptr<ASTNode> parseCondition();
         std::shared_ptr<ASTNode> parseVectorAlloc();
         std::shared_ptr<ASTNode> parseArrayAccess(const std::string& arrayName);
+        std::shared_ptr<ASTNode> parseFunctionDecl();
+        std::shared_ptr<ASTNode> parseReturn();
+        std::shared_ptr<ASTNode> parseFunctionCall(const std::string& functionName);
+        std::shared_ptr<ASTNode> parseTypedDeclaration();
     public: 
         Parser(const std::vector<Token>& tokens);
         std::shared_ptr<ASTNode> parse(); 

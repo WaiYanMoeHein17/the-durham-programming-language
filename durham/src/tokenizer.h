@@ -40,7 +40,13 @@ enum class TokenType {
 
     _for,           //for
     _if,            //if 
+    _else,          //else
     _while,         //while
+    _function,      //function
+
+    // Type keywords
+    _text,          // text (string type)
+    _number,        // number (integer type)
 
     // Vector/Array operations
     _new,           // new
@@ -55,10 +61,14 @@ enum class TokenType {
     _greater,       // >  
     _lesser,        // <
     _equals,        // ==
-    _not_equals,    // !=          
+    _not_equals,    // !=    
+    
+    // Functions
+    _remainder,     // %     
 
     // Punctuation and others
-    quotations,     // " "
+    quotations,     // " " (for print statements)
+    string_lit,     // String literal value
     semi,           // .
     open_paren,     // begin
     close_paren,    // end
@@ -66,7 +76,7 @@ enum class TokenType {
     close_brace,    // back
     equals,         // is
     int_lit, 
-    comma,          // and
+    comma,          // mulit-digit separator
     dot,            // '
     identifier      // variable names
 };
@@ -101,6 +111,7 @@ class Tokenizer {
         bool promptUserForCorrection(const std::string& original, const std::string& suggestion, int position);
 };
 
+std::optional<std::string> college_to_decimal(const std::string& college);
 std::optional<char> college_to_digit(const std::string& college);
 
 
