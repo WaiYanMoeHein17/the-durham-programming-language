@@ -149,7 +149,12 @@ class DurhamCompiler {
         if (match) {
             const varName = match[1];
             const expression = match[2].trim();
-            this.variables[varName] = this.evaluateExpression(expression);
+            const value = this.evaluateExpression(expression);
+            console.log(`Setting variable ${varName} = ${value}`);
+            this.variables[varName] = value;
+            console.log('Variables after assignment:', this.variables);
+        } else {
+            console.log('Failed to match number declaration:', stmt);
         }
     }
 
@@ -353,37 +358,90 @@ class DurhamCompiler {
 
     parseFunctionDeclaration(statements, startIndex) {
         // function name begin params end front
-        const stmt = statements[startIndex];
-        const match = stmt.match(/function\s+(\w+)\s+begin\s+(.+?)\s+end\s+front/);
+        let funcHeader = statements[startIndex];
+        let headerEndIndex = startIndex;
+        
+        // Collect all parts until we find "end front"
+        while (headerEndIndex < statements.length && !funcHeader.includes('end front')) {
+            headerEndIndex++;
+            if (headerEndIndex < statements.length) {
+                funcHeader += '. ' + statements[headerEndIndex];
+            }
+        }
+        
+        console.log('Raw function header:', funcHeader);
+        
+        // Check if there's content after "end front" and extract it
+        let remainderAfterHeader = '';
+        const endFrontIndex = funcHeader.indexOf('end front');
+        if (endFrontIndex !== -1) {
+            const afterEndFront = funcHeader.substring(endFrontIndex + 9).trim(); // +9 for "end front"
+            if (afterEndFront.length > 0) {
+                remainderAfterHeader = afterEndFront;
+                console.log('Found remainder after end front:', remainderAfterHeader);
+            }
+            funcHeader = funcHeader.substring(0, endFrontIndex + 9);
+        }
+        
+        console.log('Cleaned function header:', funcHeader);
+        
+        const match = funcHeader.match(/function\s+(\w+)\s+begin\s+(.+?)\s+end\s+front/);
         
         if (!match) return { endIndex: startIndex };
 
         const funcName = match[1];
         const params = match[2].split(' and ').map(p => p.trim());
 
+        console.log('Function name:', funcName, 'params:', params);
+
         // Find function body
         let depth = 1;
         let bodyStatements = [];
-        let i = startIndex + 1;
+        
+        // If there was a remainder after "end front", add it as first body statement
+        if (remainderAfterHeader) {
+            bodyStatements.push(remainderAfterHeader);
+        }
+        
+        let i = headerEndIndex + 1;
+
+        console.log('Looking for function body starting at index', i);
 
         while (i < statements.length && depth > 0) {
             const s = statements[i].trim();
+            
+            console.log(`Function body check[${i}]:`, s, 'depth:', depth);
             
             if (s.startsWith('function ') || s.startsWith('for begin') || s.startsWith('if begin')) {
                 depth++;
             }
             
-            if (s === 'back') {
+            // Check if statement starts with 'back' (might have content after it)
+            if (s === 'back' || s.startsWith('back\n') || s.startsWith('back ')) {
                 depth--;
-                if (depth === 0) break;
+                console.log('Found back, depth now:', depth);
+                if (depth === 0) {
+                    // If there's content after 'back', we need to put it back in the statements
+                    const backIndex = s.indexOf('back');
+                    const afterBack = s.substring(backIndex + 4).trim();
+                    if (afterBack.length > 0) {
+                        console.log('Content after back:', afterBack);
+                        // Insert it into statements array
+                        statements.splice(i + 1, 0, afterBack);
+                    }
+                    break;
+                }
             }
 
             if (depth > 0) {
+                console.log('Adding to function body:', s);
                 bodyStatements.push(s);
             }
             
             i++;
         }
+
+        console.log('Function body:', bodyStatements);
 
         return {
             name: funcName,
@@ -430,12 +488,21 @@ class DurhamCompiler {
             return stringMatch[1];
         }
 
-        // String concatenation
+        // Durham operator: addition for numbers, concatenation for strings
         if (expr.includes(' durham ')) {
             const parts = expr.split(' durham ').map(p => p.trim());
+            
+            // Evaluate all parts
+            const values = parts.map(p => this.evaluateExpression(p));
+            
+            // If all values are numbers, do addition
+            if (values.every(v => typeof v === 'number')) {
+                return values.reduce((sum, val) => sum + val, 0);
+            }
+            
+            // Otherwise, do string concatenation
             let result = '';
-            for (const part of parts) {
-                const val = this.evaluateExpression(part);
+            for (const val of values) {
                 result += String(val);
             }
             return result;
@@ -467,11 +534,15 @@ class DurhamCompiler {
 
         // Variable reference
         if (this.stringVariables[expr]) {
+            console.log(`Found string variable ${expr}:`, this.stringVariables[expr]);
             return this.stringVariables[expr];
         }
         if (this.variables[expr] !== undefined) {
+            console.log(`Found numeric variable ${expr}:`, this.variables[expr]);
             return this.variables[expr];
         }
+        
+        console.log(`Variable ${expr} not found. Variables:`, this.variables);
 
         // College name (with comma for multi-digit)
         if (expr.includes(',')) {
@@ -501,7 +572,13 @@ class DurhamCompiler {
 
     callFunction(name, args) {
         const func = this.functions[name];
-        if (!func) return 0;
+        if (!func) {
+            console.log('Function not found:', name);
+            return 0;
+        }
+
+        console.log(`Calling function ${name} with args:`, args);
+        console.log('Function body:', func.body);
 
         // Save current variables
         const savedVars = { ...this.variables };
@@ -509,15 +586,18 @@ class DurhamCompiler {
         // Set parameters
         func.params.forEach((param, i) => {
             this.variables[param] = args[i] || 0;
+            console.log(`Set param ${param} = ${args[i]}`);
         });
 
         // Execute function body
         let returnValue = 0;
         for (const stmt of func.body) {
+            console.log('Executing function statement:', stmt);
             if (stmt.startsWith('mcs begin')) {
                 const match = stmt.match(/mcs begin (.+?) end/);
                 if (match) {
                     returnValue = this.evaluateExpression(match[1]);
+                    console.log('Function returning:', returnValue);
                     break;
                 }
             } else {
@@ -528,6 +608,7 @@ class DurhamCompiler {
         // Restore variables
         this.variables = savedVars;
 
+        console.log('Function returned:', returnValue);
         return returnValue;
     }
 }

@@ -1,30 +1,8 @@
-" ============================================ "
-" Durham Language - Comprehensive Test Suite "
-" ============================================ "
-
-tlc begin "===========================================" end.
-tlc begin "Durham Language Test Suite" end.
-tlc begin "===========================================" end.
-
-" ============================================ "
-" Test 1: Number Variables "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 1: Number Variables" end.
-tlc begin "-------------------------" end.
-
 number x is castle.
 tlc begin x end.
 
 number y is marys,marys.
 tlc begin y end.
-
-" ============================================ "
-" Test 2: String Variables "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 2: String Variables" end.
-tlc begin "-------------------------" end.
 
 text greeting is begin "Hello World" end.
 tlc begin greeting end.
@@ -32,24 +10,10 @@ tlc begin greeting end.
 text welcome is begin "Welcome to Durham!" end.
 tlc begin welcome end.
 
-" ============================================ "
-" Test 3: Simple String Concatenation "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 3: String Concatenation" end.
-tlc begin "----------------------------" end.
-
 text hello is begin "Hello" end.
 text world is begin " World" end.
 text result is hello durham world.
 tlc begin result end.
-
-" ============================================ "
-" Test 4: Multi-way String Concatenation "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 4: Multi-way Concatenation" end.
-tlc begin "--------------------------------" end.
 
 text first is begin "Durham" end.
 text second is begin " Language" end.
@@ -57,23 +21,9 @@ text third is begin " Rocks!" end.
 text full is first durham second durham third.
 tlc begin full end.
 
-" ============================================ "
-" Test 5: Inline Concatenation in Print "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 5: Inline Concatenation" end.
-tlc begin "-----------------------------" end.
-
 text partone is begin "Hello " end.
 text parttwo is begin "World" end.
 tlc begin partone durham parttwo end.
-
-" ============================================ "
-" Test 6: Complex String Operations "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 6: Complex Strings" end.
-tlc begin "------------------------" end.
 
 text a is begin "String" end.
 text b is begin " concat" end.
@@ -83,26 +33,12 @@ text e is begin " perfectly" end.
 text complex is a durham b durham c durham d durham e.
 tlc begin complex end.
 
-" ============================================ "
-" Test 7: Functions "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 7: Functions" end.
-tlc begin "-----------------" end.
-
 function addition begin x and y end front 
     mcs begin x durham y end.
 back
 
 number sum is addition begin castle and marys end.
 tlc begin sum end.
-
-" ============================================ "
-" Test 8: If-Else Statements "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 8: If-Else" end.
-tlc begin "---------------" end.
 
 number age is hatfield.
 
@@ -112,23 +48,9 @@ back else front
     tlc begin "Age is NOT greater than 3" end.
 back
 
-" ============================================ "
-" Test 9: For Loop "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 9: For Loop" end.
-tlc begin "----------------" end.
-
 for begin i is butler. i lesser castle. i is i durham chads end front 
     tlc begin i end.
 back
-
-" ============================================ "
-" Test 10: Fibonacci Sequence "
-" ============================================ "
-tlc begin "" end.
-tlc begin "Test 10: Fibonacci (first 10)" end.
-tlc begin "------------------------------" end.
 
 prev is butler.
 curr is chads.
@@ -141,11 +63,3 @@ for begin i is marys. i lesser hatfield. i is i durham chads end front
     prev is curr.
     curr is temp.
 back
-
-" ============================================ "
-" Test Complete "
-" ============================================ "
-tlc begin "" end.
-tlc begin "===========================================" end.
-tlc begin "All Tests Complete!" end.
-tlc begin "===========================================" end.
