@@ -260,6 +260,8 @@ Ready to code? 🚀
         if (lineIndex < 0 || lineIndex >= lines.length) return null;
         
         const line = lines[lineIndex];
+        if (!line || typeof line !== 'string') return null;
+        
         const words = line.split(/\s+/);
         
         for (const word of words) {

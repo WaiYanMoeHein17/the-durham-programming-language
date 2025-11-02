@@ -35,19 +35,24 @@ class DurhamCompiler {
     }
 
     preprocess(code) {
-        // Remove standalone comments (lines that start with quotes and are not part of begin...end)
-        // Split into statements first
-        const statements = code.split('.').map(s => s.trim()).filter(s => s.length > 0);
-        
-        // Filter out comment-only statements
-        return statements.filter(stmt => {
-            // If statement starts with a quote but doesn't have "begin" or "tlc", it's a comment
-            const trimmed = stmt.trim();
-            if (trimmed.startsWith('"') && !trimmed.includes('begin') && !trimmed.includes('tlc')) {
+        // First, remove comment lines (lines that are only " comment ")
+        // Comments are standalone lines starting and ending with quotes
+        const lines = code.split('\n');
+        const cleanedLines = lines.filter(line => {
+            const trimmed = line.trim();
+            // Remove lines that are just comments: " text "
+            if (trimmed.match(/^"[^"]*"$/)) {
                 return false;
             }
             return true;
         });
+        
+        const cleanedCode = cleanedLines.join('\n');
+        
+        // Now split into statements by period
+        const statements = cleanedCode.split('.').map(s => s.trim()).filter(s => s.length > 0);
+        
+        return statements;
     }
 
     execute(statements) {
@@ -58,6 +63,8 @@ class DurhamCompiler {
                 i++;
                 continue;
             }
+
+            console.log(`Executing statement ${i}:`, stmt);
 
             // Print statement
             if (stmt.startsWith('tlc begin')) {
@@ -231,26 +238,79 @@ class DurhamCompiler {
     }
 
     executeForLoop(statements, startIndex) {
-        const stmt = statements[startIndex];
+        // For loop is split across multiple statements:
+        // statements[i]:     "for begin i is butler"
+        // statements[i+1]:   "i lesser snow"
+        // statements[i+2]:   "i is i durham chads end front"
         
-        // for begin init. condition. increment end front
-        const match = stmt.match(/for begin (.+?) end front/);
-        if (!match) return { endIndex: startIndex };
+        let forHeader = statements[startIndex];
+        let headerEndIndex = startIndex;
+        
+        // Collect all parts until we find "end front"
+        while (headerEndIndex < statements.length && !forHeader.includes('end front')) {
+            headerEndIndex++;
+            if (headerEndIndex < statements.length) {
+                forHeader += '. ' + statements[headerEndIndex];
+            }
+        }
+        
+        console.log('Raw collected header:', forHeader);
+        console.log('Header ended at index:', headerEndIndex);
+        
+        // Check if the statement containing "end front" has more content after it
+        // If so, we need to split it and keep the remainder for the body
+        let remainderAfterHeader = '';
+        const endFrontIndex = forHeader.indexOf('end front');
+        if (endFrontIndex !== -1) {
+            const afterEndFront = forHeader.substring(endFrontIndex + 9).trim(); // +9 for "end front"
+            if (afterEndFront.length > 0) {
+                remainderAfterHeader = afterEndFront;
+                console.log('Found remainder after end front:', remainderAfterHeader);
+            }
+            forHeader = forHeader.substring(0, endFrontIndex + 9); // +9 for "end front"
+        }
+        
+        console.log('Cleaned for loop header:', forHeader);
+        
+        // Now parse: for begin init. condition. increment end front
+        const match = forHeader.match(/for begin\s+(.+?)\s+end\s+front/);
+        if (!match) {
+            console.log('No match for for loop:', forHeader);
+            return { endIndex: startIndex };
+        }
 
-        const forParts = match[1].split('.');
-        if (forParts.length < 3) return { endIndex: startIndex };
+        // Split the content by periods
+        const forContent = match[1].trim();
+        const parts = forContent.split(/\.\s*/);
+        
+        if (parts.length < 3) {
+            console.log('For loop needs 3 parts, got:', parts);
+            return { endIndex: headerEndIndex };
+        }
 
-        const init = forParts[0].trim();
-        const condition = forParts[1].trim();
-        const increment = forParts[2].trim();
+        const init = parts[0].trim();
+        const condition = parts[1].trim();
+        const increment = parts[2].trim();
+        
+        console.log('For loop parts:', { init, condition, increment });
 
-        // Find loop body
+        // Find loop body (start from after the header)
         let depth = 1;
         let bodyStatements = [];
-        let i = startIndex + 1;
+        
+        // If there was a remainder after "end front", add it as first body statement
+        if (remainderAfterHeader) {
+            bodyStatements.push(remainderAfterHeader);
+        }
+        
+        let bodyIndex = headerEndIndex + 1;
 
-        while (i < statements.length && depth > 0) {
-            const s = statements[i].trim();
+        console.log('Looking for body starting at index', bodyIndex, 'statement:', statements[bodyIndex]);
+
+        while (bodyIndex < statements.length && depth > 0) {
+            const s = statements[bodyIndex].trim();
+            
+            console.log(`Checking statement[${bodyIndex}]:`, s, 'depth:', depth);
             
             if (s.startsWith('for begin') || s.startsWith('if begin') || s.startsWith('while begin')) {
                 depth++;
@@ -258,15 +318,19 @@ class DurhamCompiler {
             
             if (s === 'back') {
                 depth--;
+                console.log('Found back, depth now:', depth);
                 if (depth === 0) break;
             }
 
             if (depth > 0) {
+                console.log('Adding to body:', s);
                 bodyStatements.push(s);
             }
             
-            i++;
+            bodyIndex++;
         }
+
+        console.log('For loop body:', bodyStatements);
 
         // Execute loop
         this.executeAssignment(init);
@@ -284,7 +348,7 @@ class DurhamCompiler {
             throw new Error('Loop exceeded maximum iterations');
         }
 
-        return { endIndex: i };
+        return { endIndex: bodyIndex };
     }
 
     parseFunctionDeclaration(statements, startIndex) {

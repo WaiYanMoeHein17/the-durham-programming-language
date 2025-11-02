@@ -33,7 +33,7 @@ enum class TokenType {
     _newcastle,     // -
     _york,          // *
     _edinburgh,     // / 
-
+    
     // I/O / utility
     _tlc,           // print
     _mcs,           // return
@@ -64,7 +64,8 @@ enum class TokenType {
     _not_equals,    // !=    
     
     // Functions
-    _remainder,     // %     
+    _remainder,     // %  
+       
 
     // Punctuation and others
     quotations,     // " " (for print statements)
