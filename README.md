@@ -1,23 +1,17 @@
 # Durham Language - Web Compiler
 
 A web-based interpreter for the Durham Programming Language, allowing you to run Durham code directly in your browser!
+This repository also includes VSCode language support for syntax highlighting and snippets and the compiler source code.
 
 ## Features
 
-✨ **Live Code Execution** - Run Durham code instantly in your browser  
-🎨 **Dark/Light Theme** - Toggle between themes for comfortable coding  
-📚 **Example Programs** - Load pre-made examples to learn the syntax  
-💾 **Auto-save** - Your code is automatically saved to browser storage  
-⌨️ **Keyboard Shortcuts** - Ctrl/Cmd + Enter to run code  
-📱 **Responsive Design** - Works on desktop, tablet, and mobile  
-🎓 **College Reference** - Built-in reference for all college names and values  
+**Turing Complete** - Language is turing complete, so you can build anything although maybe with a bit of difficulty. 
+**College Reference** - Numbers have been replaced by the colleges of Durham University.   
+**VSCode Language Support** - Syntax highlighting and snippets for VSCode that you can download from this repository .vsix file
 
-## How to Use
+## Where 
 
-1. Open `index.html` in your web browser
-2. Write Durham code in the editor
-3. Click "▶️ Run Code" or press Ctrl/Cmd + Enter
-4. View output in the right panel
+Go to [Durham Language Web Compiler](https://durham-lang.github.io/web-compiler/) 
 
 ## Example Programs
 
@@ -74,7 +68,7 @@ back
 **Multi-digit numbers:** Use commas to concatenate digits  
 Example: `marys,marys` = 22
 
-## Language Reference
+## Language Documentation
 
 ### Operators
 - **Addition:** `durham` (e.g., `x durham y`)
@@ -98,38 +92,3 @@ function name begin params end front
     mcs begin return_value end.
 back
 ```
-
-## Deployment
-
-### Local Development
-Simply open `index.html` in a web browser.
-
-## Browser Compatibility
-
-Works on all modern browsers:
-- Chrome/Edge (recommended)
-- Firefox
-- Safari
-- Opera
-
-## Technical Details
-
-The web compiler is a pure JavaScript interpreter that:
-- Tokenizes Durham source code
-- Parses statements and expressions
-- Executes code in a sandboxed environment
-- Provides immediate feedback
-
-No server-side processing required - everything runs in your browser!
-
-## Contributing
-
-Found a bug? Want to add a feature? Contributions are welcome!
-
-## License
-
-MIT License - feel free to use and modify!
-
----
-
-Made with ❤️ for Durham University by Wai Yan Moe Hein
